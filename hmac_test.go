@@ -1,11 +1,12 @@
 package jwt_test
 
 import (
-	"io/ioutil"
+	"os"
+	"reflect"
 	"strings"
 	"testing"
 
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 var hmacTestData = []struct {
@@ -46,14 +47,14 @@ var hmacTestData = []struct {
 }
 
 // Sample data from http://tools.ietf.org/html/draft-jones-json-web-signature-04#appendix-A.1
-var hmacTestKey, _ = ioutil.ReadFile("test/hmacTestKey")
+var hmacTestKey, _ = os.ReadFile("test/hmacTestKey")
 
 func TestHMACVerify(t *testing.T) {
 	for _, data := range hmacTestData {
 		parts := strings.Split(data.tokenString, ".")
 
 		method := jwt.GetSigningMethod(data.alg)
-		err := method.Verify(strings.Join(parts[0:2], "."), parts[2], hmacTestKey)
+		err := method.Verify(strings.Join(parts[0:2], "."), decodeSegment(t, parts[2]), hmacTestKey)
 		if data.valid && err != nil {
 			t.Errorf("[%v] Error while verifying key: %v", data.name, err)
 		}
@@ -65,16 +66,17 @@ func TestHMACVerify(t *testing.T) {
 
 func TestHMACSign(t *testing.T) {
 	for _, data := range hmacTestData {
-		if data.valid {
-			parts := strings.Split(data.tokenString, ".")
-			method := jwt.GetSigningMethod(data.alg)
-			sig, err := method.Sign(strings.Join(parts[0:2], "."), hmacTestKey)
-			if err != nil {
-				t.Errorf("[%v] Error signing token: %v", data.name, err)
-			}
-			if sig != parts[2] {
-				t.Errorf("[%v] Incorrect signature.\nwas:\n%v\nexpecting:\n%v", data.name, sig, parts[2])
-			}
+		if !data.valid {
+			continue
+		}
+		parts := strings.Split(data.tokenString, ".")
+		method := jwt.GetSigningMethod(data.alg)
+		sig, err := method.Sign(strings.Join(parts[0:2], "."), hmacTestKey)
+		if err != nil {
+			t.Errorf("[%v] Error signing token: %v", data.name, err)
+		}
+		if !reflect.DeepEqual(sig, decodeSegment(t, parts[2])) {
+			t.Errorf("[%v] Incorrect signature.\nwas:\n%v\nexpecting:\n%v", data.name, sig, parts[2])
 		}
 	}
 }

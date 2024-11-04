@@ -2,10 +2,11 @@ package jwt_test
 
 import (
 	"fmt"
-	"io/ioutil"
+	"log"
+	"os"
 	"time"
 
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 // For HMAC signing method, the key can be any []byte. It is recommended to generate
@@ -15,7 +16,7 @@ var hmacSampleSecret []byte
 
 func init() {
 	// Load sample key data
-	if keyData, e := ioutil.ReadFile("test/hmacTestKey"); e == nil {
+	if keyData, e := os.ReadFile("test/hmacTestKey"); e == nil {
 		hmacSampleSecret = keyData
 	} else {
 		panic(e)
@@ -56,8 +57,11 @@ func ExampleParse_hmac() {
 		// hmacSampleSecret is a []byte containing your secret, e.g. []byte("my_secret_key")
 		return hmacSampleSecret, nil
 	})
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+	if claims, ok := token.Claims.(jwt.MapClaims); ok {
 		fmt.Println(claims["foo"], claims["nbf"])
 	} else {
 		fmt.Println(err)

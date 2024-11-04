@@ -1,3 +1,3 @@
-module github.com/golang-jwt/jwt/v4
+module github.com/golang-jwt/jwt/v5
 
-go 1.15
+go 1.18

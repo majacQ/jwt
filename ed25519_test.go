@@ -1,11 +1,11 @@
 package jwt_test
 
 import (
-	"io/ioutil"
+	"os"
 	"strings"
 	"testing"
 
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 var ed25519TestData = []struct {
@@ -38,7 +38,7 @@ func TestEd25519Verify(t *testing.T) {
 	for _, data := range ed25519TestData {
 		var err error
 
-		key, _ := ioutil.ReadFile(data.keys["public"])
+		key, _ := os.ReadFile(data.keys["public"])
 
 		ed25519Key, err := jwt.ParseEdPublicKeyFromPEM(key)
 		if err != nil {
@@ -49,7 +49,7 @@ func TestEd25519Verify(t *testing.T) {
 
 		method := jwt.GetSigningMethod(data.alg)
 
-		err = method.Verify(strings.Join(parts[0:2], "."), parts[2], ed25519Key)
+		err = method.Verify(strings.Join(parts[0:2], "."), decodeSegment(t, parts[2]), ed25519Key)
 		if data.valid && err != nil {
 			t.Errorf("[%v] Error while verifying key: %v", data.name, err)
 		}
@@ -62,7 +62,7 @@ func TestEd25519Verify(t *testing.T) {
 func TestEd25519Sign(t *testing.T) {
 	for _, data := range ed25519TestData {
 		var err error
-		key, _ := ioutil.ReadFile(data.keys["private"])
+		key, _ := os.ReadFile(data.keys["private"])
 
 		ed25519Key, err := jwt.ParseEdPrivateKeyFromPEM(key)
 		if err != nil {
@@ -77,8 +77,10 @@ func TestEd25519Sign(t *testing.T) {
 		if err != nil {
 			t.Errorf("[%v] Error signing token: %v", data.name, err)
 		}
-		if sig == parts[2] && !data.valid {
-			t.Errorf("[%v] Identical signatures\nbefore:\n%v\nafter:\n%v", data.name, parts[2], sig)
+
+		ssig := encodeSegment(sig)
+		if ssig == parts[2] && !data.valid {
+			t.Errorf("[%v] Identical signatures\nbefore:\n%v\nafter:\n%v", data.name, parts[2], ssig)
 		}
 	}
 }

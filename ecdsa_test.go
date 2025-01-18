@@ -2,11 +2,12 @@ package jwt_test
 
 import (
 	"crypto/ecdsa"
-	"io/ioutil"
+	"os"
+	"reflect"
 	"strings"
 	"testing"
 
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 var ecdsaTestData = []struct {
@@ -55,7 +56,7 @@ func TestECDSAVerify(t *testing.T) {
 	for _, data := range ecdsaTestData {
 		var err error
 
-		key, _ := ioutil.ReadFile(data.keys["public"])
+		key, _ := os.ReadFile(data.keys["public"])
 
 		var ecdsaKey *ecdsa.PublicKey
 		if ecdsaKey, err = jwt.ParseECPublicKeyFromPEM(key); err != nil {
@@ -65,7 +66,7 @@ func TestECDSAVerify(t *testing.T) {
 		parts := strings.Split(data.tokenString, ".")
 
 		method := jwt.GetSigningMethod(data.alg)
-		err = method.Verify(strings.Join(parts[0:2], "."), parts[2], ecdsaKey)
+		err = method.Verify(strings.Join(parts[0:2], "."), decodeSegment(t, parts[2]), ecdsaKey)
 		if data.valid && err != nil {
 			t.Errorf("[%v] Error while verifying key: %v", data.name, err)
 		}
@@ -78,7 +79,7 @@ func TestECDSAVerify(t *testing.T) {
 func TestECDSASign(t *testing.T) {
 	for _, data := range ecdsaTestData {
 		var err error
-		key, _ := ioutil.ReadFile(data.keys["private"])
+		key, _ := os.ReadFile(data.keys["private"])
 
 		var ecdsaKey *ecdsa.PrivateKey
 		if ecdsaKey, err = jwt.ParseECPrivateKeyFromPEM(key); err != nil {
@@ -90,12 +91,13 @@ func TestECDSASign(t *testing.T) {
 			toSign := strings.Join(parts[0:2], ".")
 			method := jwt.GetSigningMethod(data.alg)
 			sig, err := method.Sign(toSign, ecdsaKey)
-
 			if err != nil {
 				t.Errorf("[%v] Error signing token: %v", data.name, err)
 			}
-			if sig == parts[2] {
-				t.Errorf("[%v] Identical signatures\nbefore:\n%v\nafter:\n%v", data.name, parts[2], sig)
+
+			ssig := encodeSegment(sig)
+			if ssig == parts[2] {
+				t.Errorf("[%v] Identical signatures\nbefore:\n%v\nafter:\n%v", data.name, parts[2], ssig)
 			}
 
 			err = method.Verify(toSign, sig, ecdsaKey.Public())
@@ -108,7 +110,7 @@ func TestECDSASign(t *testing.T) {
 
 func BenchmarkECDSAParsing(b *testing.B) {
 	for _, data := range ecdsaTestData {
-		key, _ := ioutil.ReadFile(data.keys["private"])
+		key, _ := os.ReadFile(data.keys["private"])
 
 		b.Run(data.name, func(b *testing.B) {
 			b.ReportAllocs()
@@ -126,7 +128,7 @@ func BenchmarkECDSAParsing(b *testing.B) {
 
 func BenchmarkECDSASigning(b *testing.B) {
 	for _, data := range ecdsaTestData {
-		key, _ := ioutil.ReadFile(data.keys["private"])
+		key, _ := os.ReadFile(data.keys["private"])
 
 		ecdsaKey, err := jwt.ParseECPrivateKeyFromPEM(key)
 		if err != nil {
@@ -155,10 +157,24 @@ func BenchmarkECDSASigning(b *testing.B) {
 				if err != nil {
 					b.Fatalf("[%v] Error signing token: %v", data.name, err)
 				}
-				if sig == parts[2] {
+				if reflect.DeepEqual(sig, decodeSegment(b, parts[2])) {
 					b.Fatalf("[%v] Identical signatures\nbefore:\n%v\nafter:\n%v", data.name, parts[2], sig)
 				}
 			}
 		})
 	}
+}
+
+func decodeSegment(t interface{ Fatalf(string, ...any) }, signature string) (sig []byte) {
+	var err error
+	sig, err = jwt.NewParser().DecodeSegment(signature)
+	if err != nil {
+		t.Fatalf("could not decode segment: %v", err)
+	}
+
+	return
+}
+
+func encodeSegment(sig []byte) string {
+	return (&jwt.Token{}).EncodeSegment(sig)
 }

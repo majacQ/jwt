@@ -2,10 +2,11 @@ package jwt_test
 
 import (
 	"fmt"
-	"io/ioutil"
+	"log"
+	"os"
 	"time"
 
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 // For HMAC signing method, the key can be any []byte. It is recommended to generate
@@ -15,7 +16,7 @@ var hmacSampleSecret []byte
 
 func init() {
 	// Load sample key data
-	if keyData, e := ioutil.ReadFile("test/hmacTestKey"); e == nil {
+	if keyData, e := os.ReadFile("test/hmacTestKey"); e == nil {
 		hmacSampleSecret = keyData
 	} else {
 		panic(e)
@@ -48,16 +49,14 @@ func ExampleParse_hmac() {
 	// head of the token to identify which key to use, but the parsed token (head and claims) is provided
 	// to the callback, providing flexibility.
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		// Don't forget to validate the alg is what you expect:
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
-		}
-
 		// hmacSampleSecret is a []byte containing your secret, e.g. []byte("my_secret_key")
 		return hmacSampleSecret, nil
-	})
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+	if claims, ok := token.Claims.(jwt.MapClaims); ok {
 		fmt.Println(claims["foo"], claims["nbf"])
 	} else {
 		fmt.Println(err)
